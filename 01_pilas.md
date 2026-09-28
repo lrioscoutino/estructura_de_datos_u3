@@ -14,7 +14,7 @@ Una pila es como una torre de platos: solo puedes agregar o quitar por **arriba*
    └───┘
 ```
 
-## Las dos operaciones fundamentales
+## Las operaciones fundamentales
 
 | Operación | Qué hace |
 |---|---|
@@ -22,8 +22,69 @@ Una pila es como una torre de platos: solo puedes agregar o quitar por **arriba*
 | `pop()` | Quita y devuelve el elemento del tope |
 | `peek()` / `top()` | Mira el elemento del tope sin quitarlo |
 | `esta_vacia()` | Comprueba si hay algo que sacar |
+| `esta_llena()` | Solo aplica a la representación con arreglo — ver abajo |
 
-## Implementación con lista ligada (por dentro)
+## Representación en memoria: arreglo (estática) vs. lista ligada (dinámica)
+
+Una pila se puede construir de dos formas, y la diferencia es exactamente la que viste en la Unidad 1 (1.4, manejo de memoria):
+
+### Opción A — sobre un arreglo (memoria estática)
+
+Se reserva un bloque de tamaño fijo desde el inicio y se lleva un índice `tope` que marca la posición del último elemento insertado.
+
+```
+Arreglo de capacidad 5:
+
+ [ 10 | 25 |  7 |  _ |  _ ]
+   0    1    2    3    4
+             ▲
+           tope=2  (3 elementos ocupados: índices 0,1,2)
+```
+
+```python
+class PilaArreglo:
+    def __init__(self, capacidad):
+        self.capacidad = capacidad
+        self.datos = [None] * capacidad
+        self.tope = -1              # -1 significa "vacía"; si no, es el índice del último elemento
+
+    def esta_vacia(self):
+        return self.tope == -1
+
+    def esta_llena(self):
+        return self.tope == self.capacidad - 1
+
+    def push(self, dato):
+        if self.esta_llena():
+            raise OverflowError("pila llena (desbordamiento — stack overflow)")
+        self.tope += 1
+        self.datos[self.tope] = dato
+
+    def pop(self):
+        if self.esta_vacia():
+            raise IndexError("pop() sobre pila vacía (underflow)")
+        dato = self.datos[self.tope]
+        self.datos[self.tope] = None
+        self.tope -= 1
+        return dato
+
+    def peek(self):
+        return self.datos[self.tope]
+
+
+p = PilaArreglo(3)
+p.push(1); p.push(2); p.push(3)
+try:
+    p.push(4)                       # la pila ya está llena
+except OverflowError as e:
+    print("Error:", e)              # "pila llena (desbordamiento — stack overflow)"
+```
+
+**Ventaja:** acceso muy rápido y predecible, sin overhead de punteros. **Desventaja:** el tamaño máximo hay que decidirlo de antemano — si te quedas corto, `push()` falla con desbordamiento aunque técnicamente "haya memoria libre" en el resto de la computadora. Este es, exactamente, el mismo concepto que produce un `RecursionError`/*stack overflow* real cuando una función recursiva se llama demasiadas veces (Unidad 2): la pila de llamadas de tu programa también tiene un tamaño máximo fijo.
+
+### Opción B — sobre una lista ligada (memoria dinámica)
+
+Sin límite fijo de antemano — crece mientras haya memoria disponible en el sistema. Es la que ya conoces de la sección anterior:
 
 ```python
 class NodoPila:
@@ -100,6 +161,16 @@ print(pila.pop())   # 3 — LIFO, sin construir ninguna clase
 
 Construiste la versión con nodos arriba para entender el mecanismo — en código real, usa `list` así de simple.
 
+## Arreglo vs. lista ligada, resumido
+
+| | Arreglo (estática) | Lista ligada (dinámica) |
+|---|---|---|
+| Tamaño | Fijo, definido al crear la pila | Crece y decrece libremente |
+| `push`/`pop` | O(1), sin overhead de punteros | O(1), un puntero extra por nodo |
+| Riesgo | Desbordamiento (`OverflowError`) si se llena | Ninguno, salvo agotar la memoria del sistema |
+| Uso de memoria | Reservada de golpe (incluso si no se usa toda) | Solo lo que realmente se necesita en cada momento |
+| Cuándo conviene | Se conoce el máximo de antemano (ej. profundidad máxima de un parser) | El tamaño es impredecible |
+
 ## Aplicación 1: verificar paréntesis/llaves balanceados
 
 ```python
@@ -149,6 +220,41 @@ print(evaluar_postfija("5 1 2 + 4 * + 3 -"))   # 14  ← 5 + (1+2)*4 - 3
 ## Aplicación 3: deshacer/rehacer
 
 El mecanismo `Ctrl+Z` de casi cualquier editor es una pila: cada acción se apila; `Ctrl+Z` hace `pop()` y revierte esa acción (y opcionalmente la mueve a una segunda pila de "rehacer" para `Ctrl+Y`).
+
+## Aplicación 4: convertir una expresión infija a postfija
+
+La notación que usas todos los días ("infija": `3 + 4`, el operador va *entre* los operandos) no es la que evaluaste en la Aplicación 2 ("postfija": `3 4 +`, el operador va *después*). Convertir de una a otra es exactamente el algoritmo *shunting-yard* de Dijkstra — otra pila, esta vez usada para "posponer" operadores hasta que les toque su turno según la precedencia.
+
+```python
+def infija_a_postfija(expresion):
+    precedencia = {"+": 1, "-": 1, "*": 2, "/": 2}
+    salida = []
+    pila = []
+    for token in expresion.split():
+        if token.isdigit():
+            salida.append(token)
+        elif token == "(":
+            pila.append(token)
+        elif token == ")":
+            while pila and pila[-1] != "(":
+                salida.append(pila.pop())
+            pila.pop()   # descarta el "(" que le corresponde a este ")"
+        else:   # es un operador
+            # saca de la pila cualquier operador de precedencia >= al actual, antes de meter el nuevo
+            while pila and pila[-1] != "(" and precedencia.get(pila[-1], 0) >= precedencia[token]:
+                salida.append(pila.pop())
+            pila.append(token)
+    while pila:                       # vacía lo que quede en la pila, al final
+        salida.append(pila.pop())
+    return " ".join(salida)
+
+
+print(infija_a_postfija("3 4 +"))            # 3 4 +
+print(infija_a_postfija("3 + 4 * 2"))         # 3 4 2 * +   ← respeta que * tiene más precedencia
+print(infija_a_postfija("( 3 + 4 ) * 2"))      # 3 4 + 2 *   ← los paréntesis fuerzan el orden
+```
+
+**Por qué necesita una pila y no basta con leer de izquierda a derecha:** un operador no puede escribirse en la salida hasta que sepas que no viene algo de mayor precedencia después (como el `*` en `3 + 4 * 2` — el `+` tiene que esperar). La pila es exactamente el mecanismo para "posponer" una decisión hasta tener toda la información necesaria — la misma idea detrás de la evaluación de la Aplicación 2, en sentido inverso.
 
 ## Conexión con la teoría
 

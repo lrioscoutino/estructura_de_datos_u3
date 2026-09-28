@@ -44,6 +44,37 @@ class ListaCircular:
             self.ultimo = nuevo                           # el nuevo pasa a ser el último
         self._tamano += 1
 
+    def insertar_inicio(self, dato):
+        """O(1) — igual que insertar_final, salvo que NO mueve el puntero self.ultimo."""
+        nuevo = NodoCircular(dato)
+        if self.esta_vacia():
+            nuevo.siguiente = nuevo
+            self.ultimo = nuevo
+        else:
+            nuevo.siguiente = self.ultimo.siguiente   # el nuevo apunta a la cabeza vieja
+            self.ultimo.siguiente = nuevo               # el nuevo se convierte en la cabeza
+        self._tamano += 1
+
+    def eliminar(self, dato):
+        """O(n) para encontrarlo — hay que recorrer, no hay 'antes de la cabeza' al que saltar directo."""
+        if self.esta_vacia():
+            return False
+        actual = self.ultimo.siguiente
+        anterior = self.ultimo
+        for _ in range(self._tamano):
+            if actual.dato == dato:
+                if actual is self.ultimo and actual.siguiente is actual:
+                    self.ultimo = None                    # era el único nodo — la lista queda vacía
+                else:
+                    anterior.siguiente = actual.siguiente
+                    if actual is self.ultimo:               # si borramos el último, hay que reasignarlo
+                        self.ultimo = anterior
+                self._tamano -= 1
+                return True
+            anterior = actual
+            actual = actual.siguiente
+        return False
+
     def recorrer_una_vuelta(self):
         """Recorre exactamente self._tamano elementos, empezando por la cabeza."""
         if self.esta_vacia():
@@ -59,6 +90,22 @@ class ListaCircular:
 ```
 
 **El detalle clave:** con solo guardar `self.ultimo`, la cabeza siempre es `self.ultimo.siguiente` — no necesitas un puntero aparte para la cabeza. Y `recorrer_una_vuelta()` **cuenta** cuántos elementos ha visto (`self._tamano`) en vez de comparar contra `None`, porque en una lista circular **nunca llegas a `None`** — un `while actual is not None` aquí sería un bucle infinito.
+
+**El caso borde que más se olvida en `eliminar`:** si el nodo que borras es justo el que apunta `self.ultimo`, hay que **reasignar** `self.ultimo` al nodo anterior — si no, `self.ultimo` quedaría apuntando a un nodo que ya no forma parte de la lista, y `recorrer_una_vuelta()` empezaría desde el lugar equivocado.
+
+```python
+lista = ListaCircular()
+lista.insertar_final("B")
+lista.insertar_final("C")
+lista.insertar_inicio("A")
+print(lista)                 # 'A' → 'B' → 'C' → (vuelve al inicio)
+print(lista.eliminar("B"))   # True
+print(lista)                 # 'A' → 'C' → (vuelve al inicio)
+print(lista.eliminar("A"))   # True — borra la cabeza, self.ultimo no cambia
+print(lista)                 # 'C' → (vuelve al inicio)
+print(lista.eliminar("C"))   # True — borra el ÚNICO nodo, que también era self.ultimo
+print(lista.esta_vacia())    # True
+```
 
 ## Probándola
 

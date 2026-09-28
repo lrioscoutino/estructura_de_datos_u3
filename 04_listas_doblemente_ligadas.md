@@ -84,6 +84,36 @@ class ListaDoble:
         self._tamano -= 1
         return dato
 
+    def buscar(self, dato):
+        """O(n) — sin acceso directo por índice."""
+        actual = self.cabeza
+        indice = 0
+        while actual is not None:
+            if actual.dato == dato:
+                return indice
+            actual = actual.siguiente
+            indice += 1
+        return -1
+
+    def eliminar(self, dato):
+        """O(n) para encontrarlo, O(1) para desconectarlo — y sin necesitar 'anterior' como
+        parámetro extra (a diferencia de la lista simple), porque cada nodo ya conoce al suyo."""
+        actual = self.cabeza
+        while actual is not None:
+            if actual.dato == dato:
+                if actual.anterior is None:              # es la cabeza
+                    self.cabeza = actual.siguiente
+                else:
+                    actual.anterior.siguiente = actual.siguiente
+                if actual.siguiente is None:              # es la cola
+                    self.cola = actual.anterior
+                else:
+                    actual.siguiente.anterior = actual.anterior
+                self._tamano -= 1
+                return True
+            actual = actual.siguiente
+        return False
+
     def recorrer_adelante(self):
         actual = self.cabeza
         while actual is not None:
@@ -113,7 +143,16 @@ print(list(lista.recorrer_atras()))         # ['c', 'b', 'a', 'z']  ← el "truc
 print("elimina del final:", lista.eliminar_final())     # 'c'
 print("elimina del inicio:", lista.eliminar_inicio())    # 'z'
 print(lista)                                # 'a' ⇄ 'b'
+
+lista.insertar_final("c")
+lista.insertar_final("d")
+print(lista)                          # 'a' ⇄ 'b' ⇄ 'c' ⇄ 'd'
+print(lista.buscar("c"))              # 2
+print(lista.eliminar("b"))            # True — elimina del MEDIO, no de un extremo
+print(lista)                          # 'a' ⇄ 'c' ⇄ 'd'
 ```
+
+**Por qué `eliminar` aquí es más simple que en la lista simple (3.3, sección anterior):** ahí necesitabas rastrear un puntero `anterior` a mano mientras recorrías, porque el nodo no sabía quién venía antes de él. Aquí `actual.anterior` **ya existe** — el precio que pagaste en memoria extra (un puntero más por nodo) se cobra de vuelta en código más simple y sin el riesgo de olvidar actualizar `anterior` en el ciclo.
 
 ## Comparación con la lista simple
 
@@ -123,6 +162,7 @@ print(lista)                                # 'a' ⇄ 'b'
 | Insertar al final | O(n) — hay que recorrer | O(1) — gracias a `self.cola` |
 | Eliminar del inicio | O(1) | O(1) |
 | Eliminar del final | O(n) — hay que encontrar el penúltimo | O(1) — gracias a `.anterior` |
+| Buscar / eliminar por valor | O(n) | O(n) — pero el código es más simple, sin rastrear `anterior` a mano |
 | Recorrer hacia atrás | No es posible sin recorrer de nuevo desde el inicio | O(n) directo |
 | Memoria por nodo | 1 puntero | 2 punteros |
 

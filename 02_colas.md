@@ -26,7 +26,76 @@ cola.append("C")
 primero = cola.pop(0)   # ¡NO hagas esto! — pop(0) es O(n): mueve TODOS los elementos restantes
 ```
 
-`pop(0)` funciona, pero es lento — cada vez que sacas del frente, Python recorre y desplaza todos los elementos que quedan (viste esto exacto en 1.5: insertar/eliminar al inicio de un arreglo es O(n)). Para una cola real, se necesita O(1) en ambos extremos — exactamente lo que resuelve una lista doblemente ligada (3.3).
+`pop(0)` funciona, pero es lento — cada vez que sacas del frente, Python recorre y desplaza todos los elementos que quedan (viste esto exacto en 1.5: insertar/eliminar al inicio de un arreglo es O(n)). Para una cola real, se necesita O(1) en ambos extremos.
+
+## Representación en memoria: arreglo circular vs. lista ligada
+
+Igual que con las pilas (3.1.1), una cola se puede representar de dos formas:
+
+### Opción A — arreglo circular (memoria estática)
+
+Un arreglo fijo por sí solo tiene el problema de `pop(0)`: si "frente" siempre fuera el índice 0, desencolar obligaría a recorrer todo. La solución es dejar que `frente` **se mueva** por el arreglo, y cuando llegue al final, dar la vuelta al principio con aritmética modular — la misma técnica de las listas y buffers circulares que viste más adelante en esta unidad (3.3).
+
+```
+Capacidad 3, después de encolar A, B, C:
+
+ [ A | B | C ]        frente=0, cuenta=3
+   0   1   2
+
+Después de desencolar() una vez (sale A):
+
+ [ _ | B | C ]        frente=1, cuenta=2
+   0   1   2
+
+Después de encolar(D) — D ocupa el índice 0, que quedó libre:
+
+ [ D | B | C ]        frente=1, cuenta=3
+   0   1   2
+```
+
+```python
+class ColaArreglo:
+    def __init__(self, capacidad):
+        self.capacidad = capacidad
+        self.datos = [None] * capacidad
+        self.frente = 0
+        self.cuenta = 0          # cuántos elementos hay realmente ocupados
+
+    def esta_vacia(self):
+        return self.cuenta == 0
+
+    def esta_llena(self):
+        return self.cuenta == self.capacidad
+
+    def encolar(self, dato):
+        if self.esta_llena():
+            raise OverflowError("cola llena")
+        indice_libre = (self.frente + self.cuenta) % self.capacidad   # % es lo que "da la vuelta"
+        self.datos[indice_libre] = dato
+        self.cuenta += 1
+
+    def desencolar(self):
+        if self.esta_vacia():
+            raise IndexError("cola vacía")
+        dato = self.datos[self.frente]
+        self.datos[self.frente] = None
+        self.frente = (self.frente + 1) % self.capacidad
+        self.cuenta -= 1
+        return dato
+
+
+c = ColaArreglo(3)
+c.encolar("A"); c.encolar("B"); c.encolar("C")
+print(c.desencolar())    # 'A'
+c.encolar("D")            # ocupa el índice 0, liberado por el desencolar anterior — sin mover nada
+print(c.datos)              # ['D', 'B', 'C']
+```
+
+**El operador `%` es la clave:** sin él, `frente` avanzaría siempre hacia adelante y nunca podría reutilizar los índices bajos que ya quedaron libres — el arreglo se "acabaría" aunque técnicamente hubiera huecos disponibles al principio.
+
+### Opción B — lista ligada (memoria dinámica)
+
+Sin límite de tamaño, creciendo bajo demanda. Es la que se usa a continuación:
 
 ## Implementación correcta, con lista doble por dentro
 

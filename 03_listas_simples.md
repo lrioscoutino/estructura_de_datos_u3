@@ -57,6 +57,21 @@ class ListaSimple:
             actual.siguiente = nuevo
         self._tamano += 1
 
+    def insertar_en_posicion(self, indice, dato):
+        """O(n) — hay que llegar caminando hasta esa posición, no hay acceso directo."""
+        if indice == 0:
+            self.insertar_inicio(dato)
+            return
+        if not (0 < indice <= self._tamano):
+            raise IndexError("índice fuera de rango")
+        anterior = self.cabeza
+        for _ in range(indice - 1):
+            anterior = anterior.siguiente
+        nuevo = Nodo(dato)
+        nuevo.siguiente = anterior.siguiente   # el nuevo apunta a lo que seguía
+        anterior.siguiente = nuevo               # el anterior ahora apunta al nuevo
+        self._tamano += 1
+
     def buscar(self, dato):
         """O(n) — sin atajos, hay que recorrer nodo por nodo."""
         actual = self.cabeza
@@ -93,6 +108,26 @@ class ListaSimple:
         return " → ".join(elementos) + " → None"
 ```
 
+## Paso a paso: qué pasa en memoria al insertar al inicio
+
+Antes de probar todo junto, vale la pena ver `insertar_inicio` en cámara lenta — es la operación que más confunde la primera vez, aunque sea la más simple:
+
+```
+Estado inicial:              cabeza → [10|●] → [20|●] → None
+
+Paso 1 — crear el nuevo nodo (todavía "suelto", nadie apunta a él):
+                              nuevo → [5|None]
+
+Paso 2 — nuevo.siguiente = cabeza (el nuevo ahora apunta a lo que ERA la cabeza):
+                              nuevo → [5|●] → [10|●] → [20|●] → None
+                              cabeza → [10|●] → [20|●] → None     (cabeza AÚN no cambió)
+
+Paso 3 — cabeza = nuevo (ahora sí, la cabeza apunta al nuevo nodo):
+                              cabeza → [5|●] → [10|●] → [20|●] → None
+```
+
+**El orden de los dos pasos importa:** si hicieras `cabeza = nuevo` *antes* de `nuevo.siguiente = cabeza`, perderías la referencia al resto de la lista — `nuevo.siguiente` apuntaría al propio `nuevo`, y todo lo que había después quedaría inalcanzable (y, en Python, elegible para el recolector de basura). Este es el error más común al programar listas ligadas por primera vez.
+
 ## Probándola
 
 ```python
@@ -107,6 +142,9 @@ print("buscar 20:", lista.buscar(20))   # índice 2
 print("buscar 99:", lista.buscar(99))   # -1
 lista.eliminar(10)
 print(lista)                      # 5 → 20 → 30 → None
+
+lista.insertar_en_posicion(1, 15)   # inserta 15 en el índice 1 (entre 5 y 20)
+print(lista)                         # 5 → 15 → 20 → 30 → None
 ```
 
 ## Costos, de un vistazo
