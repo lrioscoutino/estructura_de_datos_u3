@@ -171,6 +171,58 @@ Construiste la versión con nodos arriba para entender el mecanismo — en códi
 | Uso de memoria | Reservada de golpe (incluso si no se usa toda) | Solo lo que realmente se necesita en cada momento |
 | Cuándo conviene | Se conoce el máximo de antemano (ej. profundidad máxima de un parser) | El tamaño es impredecible |
 
+## Notaciones de expresiones: infija, prefija y postfija
+
+Antes de ver las aplicaciones 2 y 4, vale la pena entender **por qué existen tres formas distintas** de escribir la misma expresión matemática — cada una resuelve un problema distinto para quien la procesa (una persona o un programa).
+
+| Notación | Dónde va el operador | Ejemplo (`3 + 4`) | Ejemplo (`(3+4)*2`) |
+|---|---|---|---|
+| **Infija** | Entre los operandos | `3 + 4` | `( 3 + 4 ) * 2` |
+| **Prefija** (polaca) | Antes de los operandos | `+ 3 4` | `* + 3 4 2` |
+| **Postfija** (polaca inversa) | Después de los operandos | `3 4 +` | `3 4 + 2 *` |
+
+- **Infija** es la que usas todos los días a mano — pero es **ambigua** sin reglas de precedencia (`3 + 4 * 2` necesita que todos sepamos que `*` "pesa más" que `+`) y necesita paréntesis para forzar un orden distinto.
+- **Prefija** y **postfija** son **no ambiguas por construcción**: el orden de los operadores ya codifica la precedencia, así que **nunca necesitan paréntesis**, sin importar qué tan compleja sea la expresión.
+- Por eso las calculadoras, compiladores e intérpretes casi nunca evalúan infija directamente — la convierten primero a postfija (Aplicación 4) y evalúan eso con una pila (Aplicación 2), que es mucho más simple de programar que respetar precedencia y paréntesis a mano.
+
+### Evaluar prefija: el mismo truco, en sentido contrario
+
+Evaluar postfija recorre de **izquierda a derecha** apilando operandos. Evaluar prefija hace lo simétrico: se recorre de **derecha a izquierda**, y también se apilan operandos — pero al aplicar un operador, el orden de los `pop()` se invierte.
+
+```python
+def evaluar_prefija(expresion):
+    tokens = expresion.split()[::-1]   # se procesa de derecha a izquierda
+    pila = []
+    for token in tokens:
+        if token.lstrip("-").isdigit():
+            pila.append(int(token))
+        else:
+            a = pila.pop()   # el PRIMERO que sale es el operando IZQUIERDO (al revés que en postfija)
+            b = pila.pop()
+            if token == "+": pila.append(a + b)
+            elif token == "-": pila.append(a - b)
+            elif token == "*": pila.append(a * b)
+            elif token == "/": pila.append(a / b)
+    return pila.pop()
+
+
+print(evaluar_prefija("+ 3 4"))          # 7
+print(evaluar_prefija("* + 3 4 2"))      # 14   ← equivale a (3+4)*2
+print(evaluar_prefija("- 10 4"))         # 6    ← a=10, b=4 → 10-4
+```
+
+**La diferencia exacta con `evaluar_postfija` (Aplicación 2):** ahí se recorre de izquierda a derecha y `b = pila.pop()` sale primero (es el operando derecho). Aquí se recorre de derecha a izquierda y `a = pila.pop()` sale primero (es el operando izquierdo) — el sentido del recorrido se invierte, y por eso también se invierte cuál operando sale primero de la pila.
+
+### Las tres, lado a lado
+
+```
+Infija:    ( 3 + 4 ) * 2
+Prefija:     *  +  3  4  2      ← operador antes: lee el árbol de arriba hacia abajo
+Postfija:    3  4  +  2  *      ← operador después: lee el árbol de abajo hacia arriba
+```
+
+Ambas describen el mismo árbol de la expresión — solo cambia el orden en que se visita cada nodo (operador antes o después de sus operandos). Esa es la razón por la que ninguna de las dos necesita paréntesis: el árbol ya fija el orden sin ambigüedad, sea cual sea el orden en que lo leas.
+
 ## Aplicación 1: verificar paréntesis/llaves balanceados
 
 ```python
