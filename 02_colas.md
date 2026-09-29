@@ -95,9 +95,38 @@ print(c.datos)              # ['D', 'B', 'C']
 
 ### Opción B — lista ligada (memoria dinámica)
 
-Sin límite de tamaño, creciendo bajo demanda. Es la que se usa a continuación:
+Sin límite de tamaño, creciendo bajo demanda. Se necesitan **dos punteros**: `frente_nodo` (por dónde se desencola) y `final_nodo` (por dónde se encola) — sin el segundo, encolar tendría que recorrer toda la lista cada vez, igual que le pasaba a `insertar_final` en la lista simple (3.3).
 
-## Implementación correcta, con lista doble por dentro
+**Paso a paso: qué pasa en memoria al encolar tres elementos**
+
+```
+encolar("A"):  lista vacía → A se vuelve frente Y final a la vez
+  frente_nodo ─┐
+               ▼
+              [A|None]
+               ▲
+  final_nodo ──┘
+
+encolar("B"):  final_nodo.siguiente = nuevo, LUEGO final_nodo = nuevo
+  frente_nodo ─┐
+               ▼
+              [A|●]──►[B|None]
+                        ▲
+  final_nodo ───────────┘
+
+encolar("C"):  se repite el mismo patrón, siempre sobre el final_nodo actual
+  frente_nodo ─┐
+               ▼
+              [A|●]──►[B|●]──►[C|None]
+                                ▲
+  final_nodo ─────────────────────┘
+```
+
+`desencolar()` hace exactamente lo opuesto en el otro extremo: `frente_nodo = frente_nodo.siguiente` — nunca toca `final_nodo`, salvo en el caso especial de que la cola se quede completamente vacía (ahí hay que poner `final_nodo = None` también, o quedaría apuntando a un nodo fantasma).
+
+## Implementación correcta, con lista simple + dos punteros externos
+
+> Nota: aunque a veces se describe informalmente como "usar una lista doble", en realidad basta con una lista **simplemente** enlazada (cada `NodoCola` solo tiene `.siguiente`) — el truco no está en el nodo, sino en guardar **dos punteros externos** (`frente_nodo` y `final_nodo`) a esa misma lista. Una lista doblemente enlazada real (3.3, siguiente archivo) sí sería necesaria si quisieras recorrer la cola también hacia atrás, cosa que una cola normal nunca necesita hacer.
 
 ```python
 class NodoCola:

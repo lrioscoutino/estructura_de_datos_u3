@@ -193,6 +193,20 @@ print(esta_balanceado("((a + b)"))                # False — falta cerrar uno
 
 **Cómo funciona:** cada apertura se apila; cada cierre debe hacer `pop()` y coincidir con la apertura correspondiente. Si el paréntesis de cierre no coincide con lo que está en el tope, o si sobran aperturas al final, la expresión está mal balanceada. Esta es, literalmente, la técnica que usa cualquier editor de código para subrayarte un paréntesis sin cerrar.
 
+**Traza explícita, carácter por carácter, de `esta_balanceado("(a+[b])")`:**
+
+| Carácter | Acción | Estado de la pila después |
+|---|---|---|
+| `(` | Es apertura → se apila | `['(']` |
+| `a` | No es paréntesis → se ignora | `['(']` |
+| `+` | No es paréntesis → se ignora | `['(']` |
+| `[` | Es apertura → se apila | `['(', '[']` |
+| `b` | No es paréntesis → se ignora | `['(', '[']` |
+| `]` | Es cierre → `pop()` saca `'['`, coincide con `pares[']']='['` | `['(']` |
+| `)` | Es cierre → `pop()` saca `'('`, coincide con `pares[')']='('` | `[]` |
+
+Al terminar, la pila quedó vacía (`len(pila) == 0`) → la función devuelve `True`. Si en algún paso el `pop()` hubiera sacado un carácter distinto al esperado (ej. cerrar con `)` cuando el tope tenía `[`), la función habría devuelto `False` en ese mismo instante, sin seguir leyendo el resto de la cadena.
+
 ## Aplicación 2: evaluar una expresión postfija (notación polaca inversa)
 
 ```python
@@ -216,6 +230,18 @@ print(evaluar_postfija("3 4 +"))        # 7
 print(evaluar_postfija("3 4 + 2 *"))    # 14  ← (3+4)*2
 print(evaluar_postfija("5 1 2 + 4 * + 3 -"))   # 14  ← 5 + (1+2)*4 - 3
 ```
+
+**Traza explícita, token por token, de `evaluar_postfija("3 4 + 2 *")`:**
+
+| Token | Acción | Estado de la pila después |
+|---|---|---|
+| `"3"` | Es número → se apila | `[3]` |
+| `"4"` | Es número → se apila | `[3, 4]` |
+| `"+"` | Es operador → saca `b=4`, `a=3` (en ese orden), calcula `3+4=7`, apila el resultado | `[7]` |
+| `"2"` | Es número → se apila | `[7, 2]` |
+| `"*"` | Es operador → saca `b=2`, `a=7`, calcula `7*2=14`, apila el resultado | `[14]` |
+
+Al final queda un solo valor en la pila — ese es el resultado. **El orden `b, a = pila.pop(), pila.pop()` importa** para operaciones no conmutativas: en `"10 4 -"`, la resta correcta es `a - b = 10 - 4 = 6`, no `4 - 10`. Si invirtieras el orden de las dos líneas de `pop()`, todas las restas y divisiones darían el resultado equivocado sin que Python marque ningún error.
 
 ## Aplicación 3: deshacer/rehacer
 

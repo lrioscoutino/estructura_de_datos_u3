@@ -11,6 +11,27 @@ None ←[●|dato|●]⇄[●|dato|●]⇄[●|dato|●]→ None
 
 Esto tiene un costo (cada nodo usa más memoria: un puntero extra) a cambio de un beneficio real: **insertar y eliminar en cualquiera de los dos extremos es O(1)**, sin necesitar recorrer nada — algo que en una lista simple solo era O(1) en el extremo inicial.
 
+**Paso a paso: qué pasa en memoria al insertar al final**
+
+```
+Estado inicial (un solo nodo):     cabeza → [a|●⇄●] ← cola
+                                          (anterior=None, siguiente=None)
+
+Paso 1 — crear el nuevo nodo, todavía suelto:
+                                    nuevo → [b|None⇄None]
+
+Paso 2 — nuevo.anterior = cola  (el nuevo mira hacia atrás, a lo que era la cola):
+                                    nuevo → [b|●⇄None]  (su .anterior apunta a "a")
+
+Paso 3 — cola.siguiente = nuevo  (el viejo último ahora mira hacia adelante, al nuevo):
+                          cabeza → [a|●⇄●] ⇄ [b|●⇄None]
+
+Paso 4 — cola = nuevo  (el puntero externo "cola" se actualiza al final):
+                          cabeza → [a|●⇄●] ⇄ [b|●⇄None] ← cola
+```
+
+**Cuatro pasos, en ambas direcciones** — por eso una lista doble "cuesta" más código que una simple: cada inserción/eliminación debe mantener consistentes **dos** flechas (`.siguiente` y `.anterior`), no solo una. Olvidar el Paso 2 (`nuevo.anterior = cola`) es el error más común: la lista se vería bien recorriéndola hacia adelante, pero `recorrer_atras()` fallaría o daría un resultado incompleto, porque el nuevo nodo no sabría a quién regresar.
+
 ## El nodo, con dos punteros
 
 ```python
@@ -113,7 +134,31 @@ class ListaDoble:
                 return True
             actual = actual.siguiente
         return False
+```
 
+**Paso a paso: eliminar un nodo del medio (`b`, de la lista `a ⇄ b ⇄ c`)**
+
+```
+Antes:   a ⇄ b ⇄ c
+         (b.anterior=a, b.siguiente=c)
+
+Paso 1 — actual.anterior.siguiente = actual.siguiente
+         (el nodo "a" deja de apuntar a "b" y apunta directo a "c"):
+         a ──────────► c
+              ⇄
+              b   (b sigue existiendo en memoria, pero ya nadie
+                    "hacia adelante" pasa por él)
+
+Paso 2 — actual.siguiente.anterior = actual.anterior
+         (el nodo "c" deja de apuntar a "b" y apunta directo a "a"):
+         a ⇄ c        (ahora tampoco se puede llegar a "b" recorriendo hacia atrás)
+
+Resultado:   a ⇄ c
+```
+
+**Por qué son necesarios los dos pasos:** el Paso 1 desconecta a `b` de la dirección "hacia adelante"; el Paso 2 lo desconecta de la dirección "hacia atrás". Si solo hicieras el Paso 1, `recorrer_adelante()` ya no vería a `b` — pero `c.anterior` seguiría apuntando a `b` (un nodo que "no debería estar ahí" desde el punto de vista de la lista), y `recorrer_atras()` desde `c` pasaría por `b` antes de llegar a `a`, dando un resultado inconsistente con el recorrido hacia adelante.
+
+```python
     def recorrer_adelante(self):
         actual = self.cabeza
         while actual is not None:
