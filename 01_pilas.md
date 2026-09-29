@@ -245,6 +245,52 @@ print(esta_balanceado("((a + b)"))                # False — falta cerrar uno
 
 **Cómo funciona:** cada apertura se apila; cada cierre debe hacer `pop()` y coincidir con la apertura correspondiente. Si el paréntesis de cierre no coincide con lo que está en el tope, o si sobran aperturas al final, la expresión está mal balanceada. Esta es, literalmente, la técnica que usa cualquier editor de código para subrayarte un paréntesis sin cerrar.
 
+**Diagrama de flujo del algoritmo:**
+
+```
+                    ┌─────────────────────┐
+                    │  Por cada carácter   │
+                    │  de la expresión     │
+                    └──────────┬──────────┘
+                               ▼
+                    ┌─────────────────────┐
+              ┌─────┤ ¿Es apertura         │
+              │     │  ( [ { ?             │
+              │     └──────────┬──────────┘
+              │ sí              │ no
+              ▼                 ▼
+       ┌─────────────┐  ┌─────────────────────┐
+       │ push(       │  ├─────┤ ¿Es cierre       │
+       │  carácter)  │  │     │  ) ] } ?         │
+       └──────┬──────┘  │     └──────────┬──────┘
+              │          │ sí              │ no
+              │          ▼                 ▼
+              │   ┌─────────────────┐  ┌──────────────┐
+              │   │ ¿pila vacía O   │  │ se ignora     │
+              │   │ pop() no        │  │ (letra, +, …)│
+              │   │ coincide?       │  └──────┬───────┘
+              │   └────┬───────┬───┘         │
+              │     sí │       │ no          │
+              │        ▼       ▼             │
+              │  ┌──────────┐ (sigue          │
+              │  │ return   │  al siguiente   │
+              │  │  False   │  carácter)       │
+              │  └──────────┘                  │
+              └───────────────┬─────────────────┘
+                               ▼
+                    ┌─────────────────────┐
+                    │ ¿Quedan más          │
+                    │ caracteres?          │
+                    └──────┬──────┬────────┘
+                       sí  │      │ no
+                           │      ▼
+                           │  ┌──────────────────┐
+                           │  │ return            │
+                           │  │ len(pila) == 0    │
+                           │  └──────────────────┘
+                           └──── vuelve al inicio
+```
+
 **Traza explícita, carácter por carácter, de `esta_balanceado("(a+[b])")`:**
 
 | Carácter | Acción | Estado de la pila después |
@@ -281,6 +327,40 @@ def evaluar_postfija(expresion):
 print(evaluar_postfija("3 4 +"))        # 7
 print(evaluar_postfija("3 4 + 2 *"))    # 14  ← (3+4)*2
 print(evaluar_postfija("5 1 2 + 4 * + 3 -"))   # 14  ← 5 + (1+2)*4 - 3
+```
+
+**Diagrama de flujo del algoritmo:**
+
+```
+              ┌─────────────────────┐
+              │  Por cada token de   │
+              │  la expresión        │
+              └──────────┬──────────┘
+                         ▼
+              ┌─────────────────────┐
+              │ ¿Es un número?       │
+              └────┬─────────┬──────┘
+                sí │         │ no (es operador)
+                   ▼         ▼
+           ┌─────────────┐ ┌─────────────────────┐
+           │ push(número)│ │ b = pop()             │
+           └──────┬──────┘ │ a = pop()             │
+                  │        │ resultado = a (op) b   │
+                  │        │ push(resultado)        │
+                  │        └───────────┬───────────┘
+                  └────────────────────┤
+                                       ▼
+                            ┌─────────────────────┐
+                            │ ¿Quedan más tokens?  │
+                            └────┬──────────┬──────┘
+                              sí │          │ no
+                                 │          ▼
+                                 │   ┌──────────────────┐
+                                 │   │ return pop()       │
+                                 │   │ (el único valor    │
+                                 │   │  que queda)         │
+                                 │   └──────────────────┘
+                                 └──── vuelve al inicio
 ```
 
 **Traza explícita, token por token, de `evaluar_postfija("3 4 + 2 *")`:**

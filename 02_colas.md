@@ -182,6 +182,40 @@ class Cola:
         return "Cola[frente→ " + ", ".join(elementos) + " ←final]"
 ```
 
+**Diagrama de flujo — `encolar` y `desencolar` juntos:**
+
+```
+   encolar(dato)                          desencolar()
+        │                                       │
+        ▼                                       ▼
+┌───────────────────┐               ┌───────────────────────┐
+│ ¿cola vacía?        │               │ ¿cola vacía?           │
+└────┬─────────┬─────┘               └────┬──────────┬───────┘
+  sí │         │ no                    sí │          │ no
+     ▼         ▼                          ▼          ▼
+┌──────────┐ ┌──────────────────┐  ┌───────────┐ ┌────────────────────┐
+│ frente_  │ │ final_nodo.       │  │ raise      │ │ dato = frente_nodo. │
+│ nodo =    │ │  siguiente = nuevo │  │ IndexError │ │  dato                │
+│ final_    │ │ final_nodo = nuevo │  └───────────┘ │ frente_nodo =        │
+│ nodo =    │ └──────────────────┘                  │  frente_nodo.        │
+│  nuevo     │                                       │  siguiente            │
+└──────────┘                                       └──────────┬───────────┘
+                                                                ▼
+                                                     ┌───────────────────────┐
+                                                     │ ¿frente_nodo es None    │
+                                                     │  ahora (quedó vacía)?    │
+                                                     └────┬──────────┬────────┘
+                                                       sí │          │ no
+                                                          ▼          │
+                                                 ┌──────────────┐    │
+                                                 │ final_nodo =  │    │
+                                                 │  None (también)│    │
+                                                 └──────┬────────┘    │
+                                                        └──── return dato
+```
+
+**El paso que más se olvida:** al `desencolar()` el último elemento, `frente_nodo` queda en `None` — pero `final_nodo` seguiría apuntando al nodo que ya no existe en la lista si no se reinicia también. Ese chequeo extra es exactamente el mismo cuidado que tuviste con `self.ultimo` en la lista circular (3.3) al eliminar su único nodo.
+
 ## Probándola
 
 ```python
@@ -256,6 +290,47 @@ print(bfs(grafo, "A"))   # ['A', 'B', 'C', 'D', 'E', 'F'] — nivel por nivel de
 ```
 
 **Por qué una cola y no una pila:** si usaras una pila aquí (DFS — profundidad primero), explorarías una rama completa antes de mirar sus vecinos. La cola garantiza que revisas todos los vecinos directos de A antes de pasar a los vecinos de los vecinos — eso es "por niveles".
+
+**Diagrama de flujo del algoritmo:**
+
+```
+        ┌───────────────────────┐
+        │ visitados = {inicio}  │
+        │ cola = [inicio]        │
+        └───────────┬───────────┘
+                    ▼
+        ┌───────────────────────┐
+   ┌────┤ ¿cola tiene elementos? ├────┐
+   │ sí └───────────────────────┘  no │
+   ▼                                   ▼
+┌───────────────────┐         ┌──────────────────┐
+│ actual =           │         │ return orden      │
+│ cola.popleft()      │         └──────────────────┘
+│ (el más antiguo)     │
+└─────────┬────────────┘
+          ▼
+┌───────────────────────┐
+│ orden.append(actual)   │
+└─────────┬──────────────┘
+          ▼
+┌───────────────────────────┐
+│ Por cada vecino de actual  │
+└─────────┬──────────────────┘
+          ▼
+┌───────────────────────┐
+│ ¿vecino en visitados?  │
+└────┬──────────────┬───┘
+  sí │              │ no
+     │              ▼
+     │    ┌──────────────────────┐
+     │    │ visitados.add(vecino) │
+     │    │ cola.append(vecino)    │
+     │    └───────────┬────────────┘
+     │                │
+     └── (se ignora) ─┴─── vuelve a "¿cola tiene elementos?"
+```
+
+**El detalle que hace que sea "por niveles":** `visitados` se marca **al encolar**, no al desencolar — así un mismo vecino nunca se encola dos veces, aunque dos nodos distintos lo tengan como vecino compartido.
 
 ## Tipos de colas: simples, circulares y bicolas
 

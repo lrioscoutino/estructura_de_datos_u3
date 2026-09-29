@@ -108,6 +108,46 @@ class ListaSimple:
         return " → ".join(elementos) + " → None"
 ```
 
+**Diagrama de flujo de `eliminar(dato)` — el algoritmo con más ramas de esta sección:**
+
+```
+        ┌─────────────────────┐
+        │ actual = cabeza      │
+        │ anterior = None       │
+        └──────────┬───────────┘
+                   ▼
+        ┌─────────────────────┐
+   ┌────┤ ¿actual es None?      ├────┐
+   │ sí └─────────────────────┘  no │
+   ▼                                  ▼
+┌──────────────┐          ┌─────────────────────┐
+│ return False  │          │ ¿actual.dato ==       │
+│ (no se         │          │  dato buscado?         │
+│  encontró)      │          └────┬──────────┬───────┘
+└──────────────┘             sí │          │ no
+                                 ▼           ▼
+                    ┌─────────────────────┐ ┌────────────────────┐
+                    │ ¿anterior es None?    │ │ anterior = actual   │
+                    └────┬──────────┬──────┘ │ actual = actual.     │
+                      sí │          │ no      │  siguiente           │
+                         ▼          ▼          └──────────┬──────────┘
+              ┌──────────────┐ ┌───────────────────┐      │
+              │ cabeza =      │ │ anterior.siguiente │      │
+              │  actual.       │ │  = actual.          │      │
+              │  siguiente     │ │  siguiente           │      │
+              │ (era la cabeza)│ │ (estaba en medio/final)│    │
+              └──────┬────────┘ └─────────┬──────────────┘    │
+                     └────────────┬────────┘                    │
+                                  ▼                              │
+                       ┌────────────────────┐                   │
+                       │ return True          │                   │
+                       └────────────────────┘                   │
+                                                                   │
+                       (vuelve a "¿actual es None?") ◄────────────┘
+```
+
+**Por qué existen dos casos al desconectar (`anterior is None` vs. no):** la cabeza de la lista es el único nodo al que **nadie más apunta** — no hay un `.siguiente` de otro nodo que redirigir, hay que reasignar directamente `self.cabeza`. Cualquier otro nodo, en cambio, siempre tiene un `anterior` cuyo puntero se puede redirigir. Ese mismo patrón de "¿es la cabeza, o no?" reaparece en casi todas las operaciones de listas ligadas que edites de aquí en adelante.
+
 ## Paso a paso: qué pasa en memoria al insertar al inicio
 
 Antes de probar todo junto, vale la pena ver `insertar_inicio` en cámara lenta — es la operación que más confunde la primera vez, aunque sea la más simple:
