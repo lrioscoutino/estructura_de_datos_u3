@@ -13,7 +13,7 @@ Sigue el temario oficial: después de [Unidad 1](../estructura_de_datos_u1/READM
 - [02_colas.md](02_colas.md) — 3.2 Colas: representación en memoria, operaciones básicas, tipos (simples, circulares, bicolas), aplicaciones (simulación de atención, BFS)
 - [03_listas_simples.md](03_listas_simples.md) — 3.3 Listas — simplemente enlazadas: nodo, inserción, búsqueda, eliminación
 - [04_listas_doblemente_ligadas.md](04_listas_doblemente_ligadas.md) — 3.3 Listas — doblemente enlazadas: O(1) en ambos extremos
-- [05_listas_circulares.md](05_listas_circulares.md) — 3.3 Listas — circulares y buffer circular
+- [05_listas_circulares.md](05_listas_circulares.md) — 3.3 Listas — circulares y buffer circular, más una tabla de usos reales de listas simples/dobles/circulares (blockchain, caché LRU, Round Robin, etc.)
 - [06_actividades_evaluacion.md](06_actividades_evaluacion.md) — Actividades de aprendizaje y evaluación
 - [07_practica_pilas_colas.md](07_practica_pilas_colas.md) — Práctica guiada: historial de navegador (pilas) + cola de descargas (colas)
 

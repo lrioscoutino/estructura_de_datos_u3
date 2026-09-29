@@ -334,6 +334,20 @@ print(infija_a_postfija("( 3 + 4 ) * 2"))      # 3 4 + 2 *   ← los paréntesis
 
 **Por qué necesita una pila y no basta con leer de izquierda a derecha:** un operador no puede escribirse en la salida hasta que sepas que no viene algo de mayor precedencia después (como el `*` en `3 + 4 * 2` — el `+` tiene que esperar). La pila es exactamente el mecanismo para "posponer" una decisión hasta tener toda la información necesaria — la misma idea detrás de la evaluación de la Aplicación 2, en sentido inverso.
 
+## Usos y aplicaciones en la vida real
+
+Más allá de los ejemplos de código de arriba, la pila es una de las estructuras que más aparece "escondida" dentro de herramientas que usas todos los días:
+
+| Dónde se usa | Cómo aplica LIFO |
+|---|---|
+| **Pila de llamadas de cualquier lenguaje** (Python, Java, C...) | Cada función que llamas se apila; cuando termina, se desapila y el control regresa exactamente a donde se quedó la función anterior. Un `RecursionError`/*stack overflow* (Unidad 2) es, literalmente, esta pila llenándose. |
+| **Botón "Atrás" del navegador** | Cada página visitada se apila; "Atrás" hace `pop()`. Lo construiste tú mismo en la práctica de esta unidad. |
+| **Ctrl+Z en editores de texto, Photoshop, Word** | Cada acción se apila; deshacer saca la más reciente — nunca puedes deshacer "el segundo cambio" sin deshacer primero el más nuevo. |
+| **Verificación de sintaxis en compiladores e IDEs** | El subrayado rojo de un paréntesis sin cerrar en tu editor usa exactamente el algoritmo de la Aplicación 1. |
+| **Navegación de directorios (`cd -`, breadcrumbs de una app)** | Cada carpeta visitada se apila para poder "regresar" al directorio anterior. |
+| **Algoritmos de backtracking** (resolver laberintos, Sudoku, el problema de las N-reinas) | Se apila cada decisión tomada; si un camino no lleva a nada, se desapila ("se retrocede") y se prueba la siguiente opción. |
+| **Máquinas virtuales y intérpretes** (la JVM de Java, el intérprete de Python) | Ejecutan código de bajo nivel usando una **pila de operandos** interna para evaluar expresiones — la misma idea de la Aplicación 2, pero dentro del propio lenguaje. |
+
 ## Conexión con la teoría
 
 La pila resuelve "el último importa primero". La cola (3.2) resuelve exactamente lo opuesto: "el primero importa primero" — misma estructura de base (un contenedor lineal con dos operaciones simples), disciplina de acceso completamente distinta.

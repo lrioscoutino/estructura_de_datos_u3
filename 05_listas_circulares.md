@@ -156,6 +156,19 @@ for evento in ["login", "click", "scroll", "logout", "error"]:
 
 **Checkpoint esperado:** una vez que agregas el 4º evento (`"logout"`), el buffer de capacidad 3 debe mostrar solo los **3 más recientes** — `"login"` desaparece porque fue el más viejo.
 
+## Usos y aplicaciones en la vida real (listas simples, dobles y circulares)
+
+| Estructura | Dónde se usa | Por qué esa y no otra |
+|---|---|---|
+| **Lista simple** | Cada bloque de una **cadena de bloques** (blockchain) referencia solo al bloque anterior — nunca hace falta ir "hacia adelante". | Solo se necesita un puntero por nodo; ir siempre hacia adelante (del más nuevo al más viejo) es suficiente. |
+| **Lista simple** | Pilas y colas (3.1–3.2) se construyen **por dentro** con esta estructura. | Es la pieza mínima — nodo + un puntero — sobre la que se levanta casi todo lo demás. |
+| **Lista doble** | **Historial del navegador** (adelante/atrás) y el historial de "deshacer/rehacer" de editores más sofisticados. | Se necesita moverse en ambas direcciones sin volver a recorrer desde el inicio. |
+| **Lista doble** | **Caché LRU** (*Least Recently Used*) — usada dentro de bases de datos, CPUs y sistemas de archivos para decidir qué expulsar de una memoria caché limitada. | Cada acceso mueve un nodo al frente en O(1) (gracias a los dos punteros) — imposible de hacer así de rápido con una lista simple. |
+| **Lista doble** | Galerías de imágenes/reproductores de música con "siguiente" y "anterior". | Avanzar y retroceder deben costar lo mismo — ninguna de las dos direcciones es "especial". |
+| **Lista circular** | **Round Robin** — el propio planificador de procesos de un sistema operativo (Sistemas Operativos 2.4) recorre la cola de procesos en círculo. | Los turnos se repiten indefinidamente; no existe un "último proceso" después del cual ya no haya nadie más. |
+| **Lista circular** | Juegos de mesa/multijugador por turnos (ej. una partida de cartas en línea). | Después del último jugador, le vuelve a tocar al primero — sin un caso especial en el código. |
+| **Lista circular** | **Buffer circular** en sistemas de audio/video en tiempo real, logs recientes, historial de comandos de una terminal. | Tamaño fijo que se sobrescribe solo — no hay que "correr" los datos viejos para hacer espacio. |
+
 ## Conexión con la teoría
 
 Esta lista es la última pieza lineal antes de saltar a pilas (3.1) y colas (3.2) — que, de hecho, se construyen normalmente **usando** una lista simple o doble por dentro (rara vez circular, salvo la cola circular, una variante específica que verás en 3.2).

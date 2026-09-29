@@ -280,6 +280,19 @@ print(list(bicola))        # ['B']
 
 `deque` es, en realidad, una **bicola** — por eso te sirvió tanto para implementar la cola simple (usando solo un extremo cada vez) como, en 3.3, para la lista doblemente ligada. Una cola normal es una bicola a la que decides usar solo dos de sus cuatro operaciones posibles (`append` + `popleft`).
 
+## Usos y aplicaciones en la vida real
+
+| Dónde se usa | Cómo aplica FIFO |
+|---|---|
+| **Planificador de procesos de un sistema operativo** (Round Robin, Sistemas Operativos 2.4) | La cola de procesos "Listos" — a nadie se le "brinca" la fila sin una razón (prioridad) explícita. |
+| **Cola de impresión** (spooler) | El primer documento enviado es el primero en imprimirse, aunque lleguen más después. |
+| **Colas de mensajes en sistemas distribuidos** (RabbitMQ, Kafka, AWS SQS) | Microservicios que se comunican procesando mensajes en el orden en que llegaron, para no perder eventos ni procesarlos fuera de orden. |
+| **Atención al cliente / call centers** | "Su llamada será atendida en el orden en que fue recibida" — literalmente la definición de FIFO. |
+| **Buffer de teclado del sistema operativo** | Las teclas que presionas se encolan si la aplicación no las procesa al instante; se entregan en el mismo orden en que las tecleaste. |
+| **Streaming de video/audio** (buffer de reproducción) | Los fragmentos de video llegan por la red y se encolan; el reproductor los consume (desencola) en orden, para no reproducir el minuto 5 antes que el minuto 2. |
+| **Sistemas de boletos/reservaciones en línea** (conciertos, vuelos) | La "sala de espera virtual" de sitios como Ticketmaster es, literalmente, una cola — se le asigna un turno a cada visitante en el orden en que entró. |
+| **BFS en aplicaciones de mapas/GPS** | Encontrar la ruta más corta en número de "saltos" (ej. redes sociales: ¿a cuántos amigos de distancia está esta persona?) usa la misma cola vista en la Aplicación de BFS. |
+
 ## Conexión con la teoría
 
 Pilas y colas son, en el fondo, la misma idea (contenedor lineal + dos operaciones) con la disciplina de acceso invertida. Ambas son la base de estructuras y algoritmos que vienen después: pilas para DFS y evaluación de expresiones; colas para BFS y para el propio planificador Round Robin que ya viste en Sistemas Operativos 2.4 — la cola de procesos "Listos" es, literalmente, una cola.
