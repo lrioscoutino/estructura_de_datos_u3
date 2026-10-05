@@ -16,7 +16,7 @@ Sigue el temario oficial: después de [Unidad 1](../estructura_de_datos_u1/READM
 - [05_listas_circulares.md](05_listas_circulares.md) — 3.3 Listas — circulares y buffer circular, más una tabla de usos reales de listas simples/dobles/circulares (blockchain, caché LRU, Round Robin, etc.)
 - [06_actividades_evaluacion.md](06_actividades_evaluacion.md) — Actividades de aprendizaje y evaluación
 - [07_practica_pilas_colas.md](07_practica_pilas_colas.md) — Práctica guiada: historial de navegador (pilas) + cola de descargas (colas)
-- [08_practica_colas_redis.md](08_practica_colas_redis.md) — Práctica guiada: colas reales con Python y Redis (persistentes, compartidas entre procesos, patrón productor/consumidor bloqueante, cola de prioridad)
+- [08_practica_colas_redis.md](08_practica_colas_redis.md) — Práctica guiada: colas reales con Python y Redis (persistentes, compartidas entre procesos, patrón productor/consumidor bloqueante, cola de prioridad) + comparación con RabbitMQ y Kafka
 
 ## Nota sobre el código
 

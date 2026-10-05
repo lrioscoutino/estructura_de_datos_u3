@@ -2,7 +2,7 @@
 
 Práctica complementaria a [3.2 Colas](02_colas.md). Hasta ahora construiste colas que viven en la memoria de un solo programa — en cuanto el proceso termina, la cola desaparece, y solo ese proceso puede usarla. **Redis** resuelve ambas limitaciones: es una base de datos en memoria que vive en su propio proceso (o servidor), así que la cola **persiste** y puede ser compartida por **varios programas distintos** — exactamente como funcionan las colas de tareas reales (Celery, Sidekiq, AWS SQS) detrás de aplicaciones en producción.
 
-> Verificado ejecutando cada paso de esta práctica contra un servidor Redis real (Docker, Redis 7), con `redis-py` como cliente — incluido el patrón productor/consumidor bloqueante, confirmado con timestamps reales.
+> Verificado ejecutando cada paso de esta práctica contra un servidor Redis real (Docker, Redis 7) con `redis-py`, y también contra un RabbitMQ real (Docker) con `pika` para la sección comparativa — incluido el patrón productor/consumidor bloqueante (con timestamps reales) y el enrutamiento por patrón de RabbitMQ. Kafka se documenta por referencia oficial, sin ejecutarse en este sandbox (requiere un clúster más pesado) — queda marcado explícitamente donde corresponde.
 
 ## Por qué Redis y no solo `collections.deque`
 
@@ -160,6 +160,73 @@ docker rm redis-practica
 | `rpop` sacó los elementos en el mismo orden en que entraron | FIFO funciona idéntico, sin importar si la cola vive en tu script o en un servidor aparte. |
 | `brpop` despertó exactamente cuando llegó la tarea, sin sondeo | La misma idea de "esperar eficientemente" que resuelve el planificador de un sistema operativo al bloquear un proceso (Sistemas Operativos, 2.2) en vez de hacerlo girar en un bucle vacío. |
 | `zpopmin` rompió el orden FIFO a propósito | Prueba de que FIFO es una **elección de diseño**, no una ley física — cuando el problema lo pide (prioridades), se cambia de estructura. |
+
+## Más allá de Redis: dónde encajan RabbitMQ y Kafka
+
+Redis es un buen punto de entrada porque sus colas son solo listas con comandos familiares — pero en la industria, cuando el problema es específicamente "mensajería entre sistemas", suele usarse una herramienta **diseñada para eso**: RabbitMQ o Kafka. Los tres resuelven "mover datos de un productor a un consumidor de forma confiable", pero con modelos de entrega radicalmente distintos.
+
+### RabbitMQ — un cartero con reglas de enrutamiento
+
+RabbitMQ es un **message broker** tradicional que habla el protocolo **AMQP**. La diferencia clave frente a una lista de Redis: en Redis, un mensaje lo consume **el primero que haga `rpop`** — se acabó, nadie más lo ve. En RabbitMQ, un mismo mensaje puede entregarse a **varias colas distintas** según reglas de enrutamiento, sin que el productor sepa cuántos consumidores hay ni cómo se llaman.
+
+```python
+import pika
+
+conn = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+canal = conn.channel()
+
+# Un "exchange" tipo topic enruta por patrón — no es una cola, es un repartidor de correo
+canal.exchange_declare(exchange="eventos", exchange_type="topic")
+
+canal.queue_declare(queue="cola_pagos")
+canal.queue_declare(queue="cola_auditoria")
+
+canal.queue_bind(exchange="eventos", queue="cola_pagos", routing_key="pago.*")
+canal.queue_bind(exchange="eventos", queue="cola_auditoria", routing_key="#")  # "#" = todo
+
+canal.basic_publish(exchange="eventos", routing_key="pago.creado", body="Pago 123 creado")
+canal.basic_publish(exchange="eventos", routing_key="usuario.creado", body="Usuario 456 creado")
+```
+
+**Verificado:** el mensaje `"Pago 123 creado"` llegó a **ambas** colas (coincide con el patrón `pago.*` de `cola_pagos`, y con `#` de `cola_auditoria`, que recibe todo); `"Usuario 456 creado"` solo llegó a `cola_auditoria`. Ese enrutamiento por patrón — sin que el código del productor conozca a los consumidores — es exactamente lo que una lista de Redis no ofrece de fábrica.
+
+**Cuándo usarlo:** cuando necesitas **garantías de entrega** (confirmaciones/`ack`, reintentos, colas de mensajes muertos) y **enrutamiento flexible** entre microservicios — ej. un pedido de e-commerce que debe notificar a facturación, inventario y envíos al mismo tiempo, cada uno con su propia cola.
+
+### Kafka — un registro que no se borra
+
+> Nota: a diferencia de Redis y RabbitMQ (verificados arriba con contenedores reales), Kafka requiere un clúster más pesado de levantar (broker + metadatos) — lo siguiente sigue la documentación oficial de Apache Kafka, sin ejecutarse en este sandbox.
+
+Kafka resuelve un problema distinto: no es un "buzón que se vacía al leer", es un **log distribuido** — los mensajes (llamados *eventos*) se **anexan** a un *topic* y **no se borran** al ser leídos. Varios consumidores pueden leer el mismo *topic* de forma independiente, cada uno llevando su propio marcador de "hasta dónde ya leí" (*offset*).
+
+```python
+# Conceptual — sintaxis real de kafka-python, no ejecutada aquí
+from kafka import KafkaProducer, KafkaConsumer
+
+productor = KafkaProducer(bootstrap_servers="localhost:9092")
+productor.send("pagos", b"Pago 123 creado")
+
+consumidor = KafkaConsumer("pagos", bootstrap_servers="localhost:9092", group_id="facturacion")
+for mensaje in consumidor:
+    print(mensaje.value)   # puede releerse después, el mensaje sigue ahí
+```
+
+**La diferencia que más importa:** en Redis/RabbitMQ, una vez que alguien consume el mensaje, se va. En Kafka, el mensaje queda en el *topic* durante un tiempo configurable (horas, días, o para siempre) — un consumidor nuevo que se conecte mañana puede **reprocesar el historial completo** desde el principio. Por eso Kafka se usa para *streaming* de datos a gran escala (clics de usuarios, métricas, logs) donde el volumen es enorme y distintos equipos quieren leer el mismo flujo de eventos para cosas distintas (analítica, alertas, entrenamiento de modelos), no solo "repartir trabajo una vez".
+
+Un *topic* de Kafka también se divide en **particiones** — cada partición mantiene **su propio** orden FIFO (la misma garantía que ya verificaste con `rpop`), pero el orden solo está garantizado *dentro* de una partición, no entre todas — el precio que paga por poder escalar a millones de mensajes por segundo repartiendo la carga entre varios discos/máquinas.
+
+### Comparación lado a lado
+
+| | Redis (listas) | RabbitMQ | Kafka |
+|---|---|---|---|
+| Modelo | Cola simple | *Message broker* con enrutamiento | Log distribuido (*streaming*) |
+| El mensaje se borra al leerlo | Sí | Sí (tras `ack`) | No — persiste según retención configurada |
+| Un mensaje a varios consumidores | No, sin Pub/Sub aparte | Sí, vía *exchanges* y *bindings* | Sí, cada *consumer group* lee todo el *topic* |
+| Reproducir el historial | No | No | Sí — es su característica central |
+| Orden garantizado | Siempre (una sola lista) | Por cola | Solo dentro de cada partición |
+| Mejor para... | Prototipos, colas simples, caché | Microservicios con reglas de enrutamiento y garantías de entrega | Streaming de eventos a gran escala, analítica en tiempo real |
+| Qué tan pesado es operarlo | Ligero | Medio | Pesado (requiere más infraestructura) |
+
+**La pregunta que decide cuál usar:** ¿necesitas que el mensaje desaparezca una vez atendido (Redis/RabbitMQ), o necesitas que el historial completo quede disponible para quien quiera leerlo después (Kafka)? Esa sola pregunta descarta dos de las tres opciones en la mayoría de los casos reales.
 
 ## Actividades de aprendizaje
 
