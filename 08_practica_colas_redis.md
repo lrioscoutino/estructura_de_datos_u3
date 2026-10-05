@@ -4,6 +4,94 @@ Práctica complementaria a [3.2 Colas](02_colas.md). Hasta ahora construiste col
 
 > Verificado ejecutando cada paso de esta práctica contra un servidor Redis real (Docker, Redis 7) con `redis-py`, y también contra un RabbitMQ real (Docker) con `pika` para la sección comparativa — incluido el patrón productor/consumidor bloqueante (con timestamps reales) y el enrutamiento por patrón de RabbitMQ. Kafka se documenta por referencia oficial, sin ejecutarse en este sandbox (requiere un clúster más pesado) — queda marcado explícitamente donde corresponde.
 
+## ¿Qué es Redis, exactamente?
+
+**Redis** (*REmote DIctionary Server*) es un servidor de estructuras de datos en memoria: un programa aparte que corre en segundo plano (como `smbd` en la práctica de Samba, o `crond` en la de Cron) y que guarda todo en **RAM**, no en un archivo en disco como SQLite o Postgres. Eso es lo que lo hace extremadamente rápido — leer de RAM es miles de veces más rápido que leer de disco — pero también lo que explica **por qué necesitas pensar en la persistencia** como algo aparte, no automático.
+
+### Arquitectura: cliente-servidor sobre TCP
+
+Redis **no es una librería que importas** — es un **proceso independiente** al que tu programa se conecta por red (aunque sea la misma máquina), igual que te conectas a una base de datos. Por eso dos procesos Python totalmente distintos (tu `productor.py` y tu `consumidor.py`) pueden compartir la misma cola: ambos son solo **clientes** hablándole al mismo servidor.
+
+```
+┌─────────────────┐                              ┌──────────────────────────────┐
+│  productor.py     │                              │       Servidor Redis           │
+│  (proceso Python)  │ ──── TCP, puerto 6379 ────► │  (proceso aparte, en su propia │
+└─────────────────┘                              │   memoria RAM)                  │
+                                                     │                                  │
+┌─────────────────┐                              │  clave "tareas" → [ C, B, A ]   │
+│  consumidor.py     │                              │  clave "cola_prioridad" → {...} │
+│  (proceso Python)  │ ──── TCP, puerto 6379 ────► │                                  │
+└─────────────────┘                              └──────────────────────────────┘
+                                                              │
+                                                     (opcional) RDB/AOF
+                                                              ▼
+                                                        ┌───────────┐
+                                                        │  disco      │
+                                                        └───────────┘
+```
+
+Cada vez que llamas `r.lpush(...)` o `r.rpop(...)` en Python, lo que realmente pasa es: tu programa **envía un mensaje de texto por la red** (ej. literalmente los bytes `LPUSH tareas tarea-1`) al proceso de Redis, que lo ejecuta y responde — igual que un navegador le pide una página a un servidor web. `redis-py` solo te ahorra escribir esos mensajes a mano.
+
+### ¿Dónde quedan los datos si Redis se reinicia?
+
+Por defecto, **en ningún lado fuera de la RAM** — si el proceso de Redis muere sin haber guardado nada a disco, los datos se pierden. Esto lo verificamos de dos formas distintas:
+
+```python
+# Experimento 1 — Redis SIN volumen de disco
+r.set("clave_importante", "este dato vive solo en RAM")
+print(r.get("clave_importante"))   # 'este dato vive solo en RAM'
+
+# ...se destruye el contenedor y se crea uno nuevo (simula un reinicio real)...
+
+print(r.get("clave_importante"))   # None — el dato desapareció, estaba solo en RAM
+```
+
+```python
+# Experimento 2 — Redis CON volumen de disco + guardado explícito
+r.set("clave_importante", "este dato SI se guarda en disco")
+r.bgsave()   # BGSAVE: escribe un snapshot (RDB) a disco en segundo plano
+
+# ...se destruye el contenedor y se crea uno nuevo, pero reutilizando el mismo volumen...
+
+print(r.get("clave_importante"))   # 'este dato SI se guarda en disco' — sí sobrevivió
+```
+
+**Checkpoint real de esta práctica:** el primer experimento devolvió `None` tras recrear el contenedor; el segundo (con `-v` montando una carpeta del host a `/data`, más `bgsave()`) devolvió el valor intacto. Esa diferencia — RAM pura vs. RAM + snapshot a disco — es la decisión de diseño más importante que tomas al usar Redis en un proyecto real: ¿puedo darme el lujo de perder estos datos si el servidor se cae, o no?
+
+| Mecanismo | Qué hace | Cuándo usarlo |
+|---|---|---|
+| Sin persistencia (por defecto) | Todo vive solo en RAM | Caché, datos desechables, colas de tareas de vida muy corta |
+| **RDB** (snapshot) | Guarda una "foto" completa de los datos cada cierto tiempo, o con `bgsave()` manual | Buen balance — pierdes como máximo los cambios desde el último snapshot |
+| **AOF** (*Append Only File*) | Registra **cada comando de escritura** en un log, como el journal de un sistema de archivos | Máxima durabilidad — casi nada se pierde, a cambio de más uso de disco |
+
+### ¿Por qué no hay condiciones de carrera entre el productor y el consumidor?
+
+Redis ejecuta los comandos **uno a la vez**, en un único hilo (por eso un servidor Redis típico usa un solo núcleo de CPU para procesar comandos). Si dos clientes mandan `lpush` casi al mismo tiempo, Redis los encola internamente y los ejecuta en algún orden, pero **nunca a medias** — no existe el escenario de la condición de carrera que viste en Sistemas Operativos 2.5, donde dos hilos leen el mismo valor antes de que cualquiera escriba. Cada comando de Redis es **atómico** por diseño.
+
+### Diagrama: la secuencia completa de `BRPOP` bloqueante (Paso 4)
+
+```
+Tiempo →
+
+consumidor.py:  brpop("tareas")
+                      │
+                      │  (bloqueado, 0% CPU, esperando — NO está en un bucle preguntando)
+                      │
+productor.py:         │        lpush("tareas", "tarea-1")
+                      │                  │
+                      ▼                  ▼
+                 Redis despierta al consumidor en el MISMO instante
+                      │
+                      ▼
+consumidor.py:  recibe ("tareas", "tarea-1") → imprime "procesando tarea-1"
+                      │
+                      │  vuelve a bloquearse esperando la siguiente
+                      ▼
+                 brpop("tareas")  ...se repite con tarea-2, tarea-3...
+```
+
+Esto es exactamente el mismo mecanismo que ya conoces de las colas de un sistema operativo: un proceso bloqueado (Sistemas Operativos, 2.2) no consume CPU mientras espera — el planificador lo ignora hasta que el evento que espera (en este caso, un `lpush`) realmente ocurre.
+
 ## Por qué Redis y no solo `collections.deque`
 
 | | `deque` (Unidad 3) | Cola en Redis |
