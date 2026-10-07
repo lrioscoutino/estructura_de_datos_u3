@@ -115,9 +115,38 @@ docker run -d --name redis-practica -p 6379:6379 redis:7-alpine
 docker logs redis-practica
 ```
 
+## 2. Levantar RedisInsight
+
+```bash
+docker run -d --name redisinsight --network redis-net -p 5540:5540 redis/redisinsight:latest
+```
+
+## 3. Conectar RedisInsight a Redis
+
+1. Abrir http://localhost:5540 y aceptar los términos.
+2. Pulsar **Add Redis database**.
+3. Llenar así:
+   - **Host:** `redis-practica`. No usar `localhost`, porque dentro del contenedor de RedisInsight `localhost` es el propio RedisInsight.
+   - **Port:** `6379`
+   - Usuario y contraseña vacíos.
+4. Pulsar **Add Redis Database**.
+
 **Checkpoint esperado:** el log debe terminar con `Ready to accept connections tcp`.
 
-## Paso 2 — Instalar el cliente Python
+## 4. Crear el proyecto Python
+
+```bash
+uv init ejemplo-redis
+cd ejemplo-redis
+uv add redis
+```
+
+Poner en `main.py` el código de la cola y ejecutarlo:
+
+```bash
+uv run main.py
+```
+## Paso 5 — Instalar el cliente Python
 
 ```bash
 pip install redis
@@ -125,7 +154,8 @@ pip install redis
 uv add redis
 ```
 
-## Paso 3 — Las listas de Redis *son* colas (y pilas) de fábrica
+
+## Paso 6 — Las listas de Redis *son* colas (y pilas) de fábrica
 
 Una **lista de Redis** es, por dentro, la misma lista doblemente enlazada que construiste en 3.3 — por eso insertar/eliminar en cualquiera de los dos extremos es O(1). El comando que uses decide si la usas como cola o como pila:
 
@@ -155,7 +185,7 @@ print(r.rpop("cola_demo"))   # None — lista vacía, Redis no lanza error, devu
 | Cola (FIFO) | `lpush` | `rpop` |
 | Pila (LIFO) | `lpush` | `lpop` |
 
-## Paso 4 — El problema de "esperar a que llegue algo": `BRPOP`
+## Paso 7 — El problema de "esperar a que llegue algo": `BRPOP`
 
 Si un *worker* necesita esperar a que aparezca trabajo, la opción ingenua es preguntar en bucle (`while True: tarea = r.rpop(...)`) — eso desperdicia CPU revisando una y otra vez una cola vacía. Redis ofrece **`brpop`** (*blocking RPOP*): el proceso se bloquea sin consumir CPU hasta que algo llegue, o hasta un tiempo límite.
 
@@ -200,7 +230,7 @@ python productor.py
 
 **Checkpoint esperado:** el consumidor imprime `"procesando tarea-1"` casi al mismo instante en que el productor imprime `"encolé tarea-1"` — no tuvo que sondear, Redis lo despertó en cuanto llegó el dato. Verificado en esta práctica con timestamps reales: la diferencia entre el `print` del productor y el del consumidor fue de milisegundos, no del intervalo de un bucle de sondeo.
 
-## Paso 5 — Bonus: cola de prioridad con *Sorted Sets*
+## Paso 8 — Bonus: cola de prioridad con *Sorted Sets*
 
 Una cola FIFO normal no sirve cuando algunos elementos deben atenderse antes que otros sin importar el orden de llegada (ej. un ticket "urgente" que llegó después de uno "normal"). Redis resuelve esto con un **Sorted Set**: cada elemento tiene un *score* numérico, y siempre puedes sacar el de menor score primero.
 
@@ -231,7 +261,7 @@ atendiendo ticket-normal-2 (prioridad 5.0)
 
 Entre dos elementos con el mismo score (`ticket-normal-1` y `ticket-normal-2`), Redis los desempata por orden lexicográfico — en la práctica, esto es lo más cerca de una "cola FIFO con prioridades" que puedes construir sin escribir tu propia estructura híbrida.
 
-## Paso 6 — Limpieza
+## Paso 9 — Limpieza
 
 ```bash
 docker stop redis-practica
