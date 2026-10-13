@@ -43,6 +43,28 @@ Mesa 3:                         [toma orden][espera cocina 3....................
 
 El mesero asíncrono nunca hace dos cosas **a la vez** literalmente (sigue siendo un solo mesero) — lo que hace es nunca desperdiciar el tiempo en que algo más (la cocina) está trabajando por su cuenta. Eso es concurrencia, no paralelismo: un solo hilo, pero cero tiempo muerto.
 
+### Cómo nació esto de verdad: el problema C10K
+
+Esta no es una idea abstracta inventada en un salón de clases — nació de un problema muy concreto de servidores de internet reales, a finales de los años 90.
+
+**El modelo original: un hilo (o un proceso) por cada conexión.** Así funcionaban los primeros servidores web: cada vez que un cliente se conectaba, el servidor creaba un hilo nuevo dedicado solo a esa conexión. Si ese hilo tenía que esperar una respuesta de disco o de otra parte del sistema, simplemente se quedaba bloqueado — pero como era *su propio* hilo, no afectaba a los demás clientes, cuyos hilos seguían corriendo en paralelo.
+
+El problema apareció cuando internet creció: cada hilo del sistema operativo consume memoria real para su propia pila (varios cientos de KB a unos cuantos MB) y cuesta tiempo de CPU cada vez que el sistema operativo cambia de uno a otro (*context switch*). Un servidor con unos cientos de conexiones simultáneas iba bien. Pero cuando los sitios empezaron a necesitar atender **decenas de miles de conexiones al mismo tiempo**, crear un hilo por cada una agotaba la memoria del servidor y lo dejaba más tiempo cambiando de hilo en hilo que atendiendo a nadie.
+
+En 1999, el ingeniero Dan Kegel publicó un ensayo muy influyente llamado *"The C10K problem"* ("el problema de los 10,000 clientes") — documentando exactamente este límite y planteando la pregunta que definió la siguiente década de ingeniería de servidores: **¿cómo atiendes 10,000 conexiones simultáneas con una sola máquina?** La respuesta no fue "hilos más eficientes" — fue repensar el modelo completo: en vez de un hilo dedicado por conexión, **un solo hilo que nunca se queda bloqueado**, usando el sistema operativo para preguntar "¿cuál de estas miles de conexiones ya tiene algo nuevo?" en lugar de esperar a cada una por turno. Eso es exactamente el mismo principio del mesero del diagrama anterior, aplicado a miles de "mesas" (conexiones) en vez de tres.
+
+**Cómo se resolvió, en orden cronológico:**
+
+| Año aprox. | Hito | Qué aportó |
+|---|---|---|
+| 1983 | `select()` (BSD Unix) | La primera forma de preguntarle al sistema operativo "¿cuál de estos descriptores de archivo ya tiene datos?" sin bloquear un hilo por cada uno — pero con un límite bajo de conexiones y lento con muchas. |
+| 2002 | `epoll` (Linux) / `kqueue` (BSD) | Versión mucho más eficiente de la misma idea — escala a decenas de miles de conexiones sin el costo de `select()`. Esto es lo que finalmente hizo viable resolver el C10K en la práctica. |
+| 2004 | **nginx** (Igor Sysoev) | Un servidor web diseñado desde cero alrededor de `epoll`/`kqueue` — un puñado de procesos atendiendo decenas de miles de conexiones, en vez de un hilo por conexión. Hoy sigue siendo uno de los servidores más usados del mundo precisamente por esto. |
+| 2009 | **Node.js** (Ryan Dahl) | Llevó el mismo modelo de "un solo hilo con event loop" al lado del servidor con JavaScript — popularizó la idea de que el código de aplicación (no solo el servidor web) se escribiera de forma asíncrona, con *callbacks* primero y luego `Promise`/`async`/`await`. |
+| 2014-2015 | `asyncio` en Python (PEP 3156) y la sintaxis `async`/`await` (PEP 492) | Python le dio a los desarrolladores una forma de escribir código asíncrono que **se lee como si fuera secuencial**, en vez de anidar *callbacks* — exactamente la sintaxis que usaste en los Pasos 1 y 3 de esta práctica. |
+
+Así que cuando corriste `asyncio.gather(*workers)` en el Paso 3, estabas usando — con 20 años de capas de abstracción más amigables encima — la misma idea de fondo que resolvió por qué nginx puede atender cien mil conexiones con un puñado de procesos, mientras que un servidor "un hilo por cliente" de los 90 se hubiera caído muchísimo antes de llegar ahí.
+
 ### Los tres términos que hay que distinguir
 
 | Término | Qué es, en una frase | Analogía del restaurante |
