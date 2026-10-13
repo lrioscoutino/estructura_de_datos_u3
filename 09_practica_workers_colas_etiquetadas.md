@@ -6,6 +6,46 @@ Requisito: Python 3, librería `redis` (`uv pip install redis` o `pip install re
 
 ---
 
+## Antes de empezar: qué significa "asíncrono" (para explicar en clase)
+
+Esta sección es la que el docente puede usar para introducir el tema antes de que el estudiante toque código. Sin esto, `async`/`await` se memorizan como sintaxis mágica — con esto, tienen una razón concreta de por qué existen.
+
+### El problema que resuelve lo asíncrono
+
+Imagina un mesero que atiende **una mesa a la vez**: toma la orden, va a la cocina, **se queda parado esperando** a que el platillo esté listo, lo lleva, y solo entonces atiende la siguiente mesa. Si hay 10 mesas, el restaurante es lentísimo — no porque el mesero trabaje poco, sino porque pasa la mayor parte del tiempo **esperando sin hacer nada útil**.
+
+Un mesero asíncrono hace otra cosa: toma la orden de la mesa 1, la manda a la cocina, y **mientras se cocina**, atiende a la mesa 2, luego a la mesa 3 — y cuando la cocina avisa que el platillo 1 está listo, lo va a entregar. Nunca se queda parado esperando: siempre que algo está "en espera" (la cocina cocinando), aprovecha ese tiempo para atender otra cosa.
+
+Ese "algo en espera" en programación casi siempre es **entrada/salida (E/S)**: esperar una respuesta de red (una API, una base de datos), esperar que el disco termine de escribir, esperar que Redis responda. El CPU, durante esa espera, no está haciendo ningún cálculo — está parado. La programación asíncrona existe para que, durante esas esperas, el programa pueda **atender otra tarea** en vez de quedarse parado.
+
+### Los tres términos que hay que distinguir
+
+| Término | Qué es, en una frase | Analogía del restaurante |
+|---|---|---|
+| **Corutina** (`async def`) | Una función especial que puede "pausarse" en un punto de espera y dejar que otra corutina corra mientras tanto. | Una orden de mesa: se puede "pausar" en el punto de "esperando a la cocina". |
+| **`await`** | El punto exacto donde una corutina dice "aquí voy a esperar algo — mientras tanto, que corra alguien más". | El momento en que el mesero deja la orden en la cocina y va a atender otra mesa. |
+| **Event loop (bucle de eventos)** | El "mesero" real: el componente que decide, en cada momento, cuál corutina pausada ya puede seguir porque lo que esperaba ya llegó. `asyncio.run()` es quien lo arranca. | El mesero mismo, decidiendo a qué mesa atender según quién ya tiene su platillo listo. |
+
+Una pieza clave que se presta a confusión: **todo esto corre en un solo hilo, un solo CPU a la vez**. No hay dos meseros — hay un mesero muy eficiente que nunca se queda parado. Por eso en el Paso 1 de esta práctica, cuando decimos "4 workers", no son 4 procesadores trabajando en paralelo de verdad — son 4 corutinas que se van turnando el único hilo cada vez que una de ellas llega a un `await` y "cede el paso".
+
+### Por qué sí funciona el ejemplo de esta práctica (y cuándo NO funcionaría)
+
+En el Paso 1, cada "tarea" hace `await asyncio.sleep(0.2)` — eso simula una espera de E/S (como esperar la respuesta de una API). Como ninguna tarea necesita el CPU *de verdad* durante esos 0.2 segundos, el mesero (event loop) puede atender a las otras 3 tareas durante exactamente esa ventana de tiempo libre. Por eso 4 "workers" terminan en una cuarta parte del tiempo: **no están calculando en paralelo, están aprovechando los huecos de espera de los demás.**
+
+Si en cambio cada tarea fuera un cálculo pesado de verdad (por ejemplo, sumar un millón de números), no habría ningún hueco de espera que aprovechar — el CPU estaría ocupado todo el tiempo con una sola tarea, y `asyncio` **no ayudaría en nada** (de hecho, varias corutinas compitiendo por el mismo hilo para cálculo puro pueden ser hasta más lentas que hacerlo todo en orden). Para ese caso se necesita paralelismo real con varios procesos (`multiprocessing`), no concurrencia con un solo hilo.
+
+**Resumen para el pizarrón:**
+
+| | ¿Para qué sirve? | Ejemplo típico |
+|---|---|---|
+| `asyncio` (un hilo, corutinas) | Muchas tareas que **esperan** mucho y calculan poco (E/S) | Servir miles de conexiones de red, consultar una API, leer/escribir en Redis |
+| `threading` (varios hilos, un CPU por el GIL en Python) | Parecido a asyncio para E/S, pero con librerías que no son `async` | Leer varios archivos con una librería vieja que no soporta `await` |
+| `multiprocessing` (varios procesos, varios CPUs) | Tareas que **calculan** mucho (CPU), poco o nada de espera | Procesar imágenes, cálculos científicos, compresión de archivos |
+
+Con esta base, el Paso 1 deja de ser "until syntax funciona, no sé por qué" y pasa a ser una comprobación concreta de algo que ya se explicó: *si las tareas son de espera (E/S), más corutinas concurrentes reducen el tiempo casi proporcionalmente — y eso es justo lo que vas a medir.*
+
+---
+
 ## Paso 1 — Worker pool con `asyncio`: ¿cuánto ayuda agregar más workers?
 
 ### El problema
