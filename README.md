@@ -17,6 +17,7 @@ Sigue el temario oficial: después de [Unidad 1](../estructura_de_datos_u1/READM
 - [06_actividades_evaluacion.md](06_actividades_evaluacion.md) — Actividades de aprendizaje y evaluación
 - [07_practica_pilas_colas.md](07_practica_pilas_colas.md) — Práctica guiada: historial de navegador (pilas) + cola de descargas (colas)
 - [08_practica_colas_redis.md](08_practica_colas_redis.md) — Práctica guiada: qué es Redis (arquitectura cliente-servidor, persistencia RDB/AOF, con diagramas), colas reales con Python (patrón productor/consumidor bloqueante, cola de prioridad) + comparación con RabbitMQ y Kafka
+- [09_practica_workers_colas_etiquetadas.md](09_practica_workers_colas_etiquetadas.md) — Práctica guiada: worker pool concurrente con `asyncio` (escalado 1→2→4 workers medido), colas etiquetadas por prioridad con `BRPOP` sobre varias listas de Redis, y ambas combinadas (pool de workers asíncronos sobre colas etiquetadas) — el patrón detrás de Celery/Sidekiq
 
 ## Nota sobre el código
 
