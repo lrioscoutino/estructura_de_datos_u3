@@ -18,6 +18,31 @@ Un mesero asíncrono hace otra cosa: toma la orden de la mesa 1, la manda a la c
 
 Ese "algo en espera" en programación casi siempre es **entrada/salida (E/S)**: esperar una respuesta de red (una API, una base de datos), esperar que el disco termine de escribir, esperar que Redis responda. El CPU, durante esa espera, no está haciendo ningún cálculo — está parado. La programación asíncrona existe para que, durante esas esperas, el programa pueda **atender otra tarea** en vez de quedarse parado.
 
+### Mesero síncrono vs. mesero asíncrono, en un diagrama
+
+```
+MESERO SÍNCRONO (un mesero, nunca aprovecha las esperas)
+tiempo ──────────────────────────────────────────────────────▶
+Mesa 1: [toma orden][espera cocina.........][entrega]
+Mesa 2:                                              [toma orden][espera cocina.........][entrega]
+Mesa 3:                                                                                           [toma orden][espera...]
+
+          └─ el mesero está "parado" aquí, sin atender a nadie más ─┘
+          3 mesas → 3× el tiempo de un ciclo completo
+
+
+MESERO ASÍNCRONO (un mesero, pero NUNCA se queda parado esperando)
+tiempo ──────────────────────────────────────────────────────▶
+Mesa 1: [toma orden][espera cocina 1.........................][entrega]
+Mesa 2:             [toma orden][espera cocina 2.........................][entrega]
+Mesa 3:                         [toma orden][espera cocina 3.........................][entrega]
+
+          └─ mientras la Mesa 1 "espera", el mesero ya está tomando la orden de la Mesa 2 ─┘
+          3 mesas → casi el mismo tiempo que atender 1 sola, porque las esperas se solapan
+```
+
+El mesero asíncrono nunca hace dos cosas **a la vez** literalmente (sigue siendo un solo mesero) — lo que hace es nunca desperdiciar el tiempo en que algo más (la cocina) está trabajando por su cuenta. Eso es concurrencia, no paralelismo: un solo hilo, pero cero tiempo muerto.
+
 ### Los tres términos que hay que distinguir
 
 | Término | Qué es, en una frase | Analogía del restaurante |
@@ -114,6 +139,26 @@ workers=4  tiempo_total=0.401s  reparto={'worker_0': 2, 'worker_1': 2, 'worker_2
 
 Con 8 tareas de 0.2s cada una: 1 worker tarda ~1.6s (8 × 0.2), 2 workers ~0.8s (la mitad), 4 workers ~0.4s (la cuarta parte). El reparto de tareas también es parejo: cada worker tomó exactamente su parte proporcional porque todos piden de la **misma cola compartida** (`asyncio.Queue`) — nadie se queda sin trabajo mientras otro worker está ocioso, a diferencia de si hubieras repartido las tareas de antemano con `tarea[i % n_workers]`.
 
+```
+1 worker  (8 tareas × 0.2s, una tras otra)
+[T0][T1][T2][T3][T4][T5][T6][T7]                                    ≈1.6s
+└──────────────────────────────┘
+
+2 workers (cada uno hace 4, en paralelo)
+worker_0: [T0][T2][T4][T6]                                          ≈0.8s
+worker_1: [T1][T3][T5][T7]
+└──────────────┘
+
+4 workers (cada uno hace 2, en paralelo)
+worker_0: [T0][T4]                                                  ≈0.4s
+worker_1: [T1][T5]
+worker_2: [T2][T6]
+worker_3: [T3][T7]
+└────────┘
+```
+
+Cada bloque `[Tn]` es una tarea completa (toma 0.2s de espera simulada). El tiempo total es literalmente el largo de la fila más corta — por eso duplicar los workers parte el tiempo casi a la mitad.
+
 Esto funciona tan limpio aquí porque `asyncio.sleep()` simula E/S (esperar una red, un disco) — el truco del `async/await` es que mientras un worker *espera*, el CPU puede atender a los demás. Si la tarea fuera cómputo puro (sin esperar nada, ej. calcular algo pesado), `asyncio` por sí solo **no** ayudaría — ahí se necesitarían procesos reales (`multiprocessing`), no corutinas.
 
 ### Ejercicio para ti
@@ -189,6 +234,29 @@ worker procesa [cola:baja] optimizar_indices
 El productor metió las 6 tareas **en un orden mezclado** (normal, baja, urgente, normal, urgente, baja). Sin embargo, el worker las atendió agrupadas estrictamente por prioridad: primero **las dos** de `cola:urgente`, luego **las dos** de `cola:normal`, y al final **las dos** de `cola:baja` — exactamente en el orden en que aparecen en la lista `COLAS_POR_PRIORIDAD` que le pasamos a `BRPOP`.
 
 Esto es la clave: `BRPOP` revisa las listas **en el orden en que se las das**, y devuelve el primer elemento que encuentra en la primera lista no vacía. No es que Redis "sepa" que `urgente` es más importante — es que tú codificaste esa prioridad en el orden de los argumentos. Si invirtieras el orden (`["cola:baja", "cola:normal", "cola:urgente"]`), lo urgente se atendería al final — este es exactamente el tipo de bug silencioso que pasa en producción si alguien reordena una lista de configuración sin entender qué hace.
+
+```
+Lo que hay en Redis (3 listas independientes, cada una es su propia estructura):
+
+  cola:urgente  [ alerta_servidor_caido | notificar_pago_rechazado ]
+  cola:normal   [ enviar_reporte_mensual | generar_factura ]
+  cola:baja     [ limpiar_logs_viejos | optimizar_indices ]
+
+BRPOP(["cola:urgente", "cola:normal", "cola:baja"]) revisa EN ESTE ORDEN:
+
+  ¿cola:urgente tiene algo?  SÍ → lo entrega.  (se repite hasta vaciarla)
+                              │
+                              ▼ (ya está vacía)
+  ¿cola:normal tiene algo?  SÍ → lo entrega.   (se repite hasta vaciarla)
+                              │
+                              ▼ (ya está vacía)
+  ¿cola:baja tiene algo?    SÍ → lo entrega.   (se repite hasta vaciarla)
+                              │
+                              ▼ (ya está vacía)
+  nadie tiene nada → espera hasta "timeout" segundos, luego devuelve None
+```
+
+El worker nunca "decide" nada — simplemente pregunta las listas en el orden que tú le diste, de arriba hacia abajo, cada vez que necesita una tarea nueva.
 
 ### Ejercicio para ti
 
@@ -272,6 +340,25 @@ asyncio.run(main())
 ### Qué acaba de pasar
 
 Con las 3 tareas `urgente`, los tres workers las toman **al mismo tiempo** (una cada uno) y las procesan en paralelo — por eso tardan ~0.15s en total para esas tres, no 0.45s. Lo mismo pasa con las 3 de `normal`. Al final quedan solo 2 de `baja`, así que solo 2 workers trabajan y el tercero se queda sin nada que hacer en esa ronda.
+
+```
+3 workers, 3 colas por prioridad, 8 tareas en total (3 urgente + 3 normal + 2 baja)
+
+Ronda 1 (los 3 workers encuentran algo en cola:urgente, la más prioritaria):
+  worker_0 ──▶ [alerta_servidor_caido]       ┐
+  worker_1 ──▶ [notificar_pago_rechazado]    ├─ en paralelo, ≈0.15s
+  worker_2 ──▶ [fuga_de_memoria_detectada]   ┘
+
+Ronda 2 (cola:urgente ya vacía → los 3 pasan a cola:normal):
+  worker_0 ──▶ [enviar_reporte_mensual]      ┐
+  worker_1 ──▶ [generar_factura]             ├─ en paralelo, ≈0.15s
+  worker_2 ──▶ [sincronizar_inventario]      ┘
+
+Ronda 3 (cola:normal ya vacía → solo quedan 2 en cola:baja):
+  worker_0 ──▶ [limpiar_logs_viejos]         ┐
+  worker_1 ──▶ [optimizar_indices]           ├─ en paralelo, ≈0.15s
+  worker_2 ──▶ (nada que hacer, espera)      ┘
+```
 
 Fíjate en el tiempo total reportado (~1.53s): es más alto de lo que esperarías solo sumando el trabajo real (3 rondas × 0.15s ≈ 0.45s). La diferencia viene de `timeout=1` en `BRPOP` — cuando la cola ya está vacía, cada worker se queda **esperando hasta 1 segundo completo** antes de rendirse y terminar. Esto no es un error: es el mismo tipo de parámetro de configuración que existe en cualquier sistema de colas real, y es exactamente el tipo de detalle que hay que medir, no asumir — por eso esta práctica, como las anteriores, se verifica corriendo el código de verdad en vez de describir "cómo debería comportarse".
 
